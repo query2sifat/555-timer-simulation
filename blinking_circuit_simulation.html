@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D 555 Blinker Circuit Simulation</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js (r128) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- OrbitControls -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- FontAwesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      user-select: none;
+      background-color: #0b0f19;
+      color: #f3f4f6;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #111827;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #4b5563;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col md:flex-row overflow-hidden">
+
+  <!-- Main Left Dashboard / Control Panel -->
+  <div class="w-full md:w-96 flex flex-col bg-gray-900 border-r border-gray-800 z-10 overflow-y-auto custom-scrollbar shadow-2xl shrink-0">
+    <!-- Header -->
+    <div class="p-6 border-b border-gray-800 bg-gray-950">
+      <div class="flex items-center space-x-3">
+        <div class="p-2.5 bg-indigo-600/20 text-indigo-400 rounded-lg border border-indigo-500/30">
+          <i class="fa-solid fa-microchip text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white">555 Timer Blinker</h1>
+          <p class="text-xs text-gray-400">Interactive 3D Assembly & Simulation</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stepper Navigation -->
+    <div class="p-6 border-b border-gray-800 bg-gray-900/50">
+      <div class="flex justify-between items-center mb-4">
+        <span class="text-xs font-semibold uppercase tracking-wider text-indigo-400" id="step-label">Step 0 of 11</span>
+        <span class="text-xs text-gray-500 font-medium" id="assembly-progress">0% Completed</span>
+      </div>
+      <!-- Progress Bar -->
+      <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden mb-5">
+        <div id="step-progress-bar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+
+      <!-- Control Buttons -->
+      <div class="grid grid-cols-3 gap-2">
+        <button id="btn-prev" class="px-3 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:pointer-events-none transition flex items-center justify-center space-x-1.5 text-sm font-semibold border border-gray-700/50" disabled>
+          <i class="fa-solid fa-chevron-left"></i> <span>Back</span>
+        </button>
+        <button id="btn-skip" class="px-3 py-2 bg-gray-800/50 text-gray-400 rounded-lg hover:bg-gray-800 hover:text-white transition text-sm font-medium border border-gray-800">
+          Skip
+        </button>
+        <button id="btn-next" class="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 hover:scale-[1.02] active:scale-[0.98] transition flex items-center justify-center space-x-1.5 text-sm font-semibold shadow-lg shadow-indigo-600/20">
+          <span>Next</span> <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Interactive Step Explanations -->
+    <div class="flex-1 p-6 space-y-4">
+      <div id="instruction-card" class="bg-gray-950/40 border border-gray-800 rounded-xl p-5 space-y-3">
+        <h3 id="step-title" class="text-base font-bold text-white flex items-center gap-2">
+          <!-- Populated dynamically -->
+        </h3>
+        <p id="step-desc" class="text-sm text-gray-400 leading-relaxed">
+          <!-- Populated dynamically -->
+        </p>
+        <div id="component-badges" class="flex flex-wrap gap-2 pt-2">
+          <!-- Dynamically populated badges -->
+        </div>
+      </div>
+
+      <!-- Live Oscilloscope & Status (Revealed when simulation starts) -->
+      <div id="live-simulation-panel" class="space-y-4 pt-2 hidden">
+        <div class="border border-gray-800 bg-gray-950/80 rounded-xl p-4 space-y-3">
+          <div class="flex justify-between items-center">
+            <span class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              Circuit Sandbox Active
+            </span>
+            <div class="flex items-center gap-1.5 text-xs text-gray-400">
+              <span id="cycle-state" class="font-mono bg-gray-900 px-2 py-0.5 rounded border border-gray-800">Charging</span>
+            </div>
+          </div>
+
+          <!-- Dynamic Voltage Graph -->
+          <div class="relative bg-black border border-gray-900 rounded-lg h-32 overflow-hidden flex flex-col justify-end">
+            <canvas id="scope-canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+            <div class="absolute top-2 left-2 flex flex-col space-y-1 z-10">
+              <span class="text-[10px] text-yellow-400 font-mono flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>
+                Capacitor Vc: <span id="val-vc">4.50V</span>
+              </span>
+              <span class="text-[10px] text-indigo-400 font-mono flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                Output Vout: <span id="val-vout">9.0V</span>
+              </span>
+            </div>
+            <div class="absolute bottom-1 right-2 text-[8px] text-gray-600 font-mono pointer-events-none">Oscilloscope</div>
+          </div>
+
+          <!-- Simulation Controls -->
+          <div class="space-y-3">
+            <div>
+              <label class="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Simulation Speed</span>
+                <span id="speed-label" class="text-indigo-400 font-mono">1.0x</span>
+              </label>
+              <input type="range" id="sim-speed" min="0.1" max="3" step="0.1" value="1" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+            </div>
+            <div class="flex items-center justify-between text-xs pt-1 border-t border-gray-800/50">
+              <span class="text-gray-400">Period ($T$):</span>
+              <span class="font-mono text-gray-200">~0.65s (1.54 Hz)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar Footer -->
+    <div class="p-4 border-t border-gray-800 bg-gray-950 text-center text-[11px] text-gray-500 flex justify-between items-center">
+      <span>555 Astable Oscillator</span>
+      <button id="btn-reset" class="text-gray-400 hover:text-white transition flex items-center gap-1">
+        <i class="fa-solid fa-rotate-left"></i> Reset Build
+      </button>
+    </div>
+  </div>
+
+  <!-- Interactive 3D Simulation Canvas Container -->
+  <div class="flex-1 relative flex flex-col bg-gray-950 overflow-hidden">
+    <!-- Float UI overlay -->
+    <div class="absolute top-4 left-4 z-10 flex gap-2">
+      <div class="bg-gray-900/90 backdrop-blur border border-gray-800/80 rounded-xl px-4 py-2.5 flex items-center gap-3 shadow-lg">
+        <i class="fa-solid fa-gamepad text-indigo-400"></i>
+        <div class="text-xs">
+          <p class="font-semibold text-white">Interactive Camera Control</p>
+          <p class="text-[10px] text-gray-400">Left-click + Drag to Rotate • Right-click to Pan • Scroll to Zoom</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="absolute top-4 right-4 z-10 flex flex-col gap-2">
+      <!-- High Fidelity toggle -->
+      <button id="btn-view-3d" class="bg-gray-900/90 backdrop-blur border border-indigo-500/30 text-indigo-400 hover:bg-indigo-600 hover:text-white transition rounded-xl p-3 shadow-lg flex items-center justify-center gap-2 text-xs font-semibold">
+        <i class="fa-solid fa-circle-play"></i> Run Circuit Live
+      </button>
+    </div>
+
+    <!-- Three.js Canvas -->
+    <div id="three-canvas-container" class="w-full flex-1 relative">
+      <div id="loading-spinner" class="absolute inset-0 flex items-center justify-center bg-gray-950 z-20 transition-opacity duration-500">
+        <div class="flex flex-col items-center space-y-4">
+          <div class="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <p class="text-sm font-semibold text-gray-400 tracking-wider">LOADING 3D SANDBOX...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Alert Overlay -->
+  <div id="alert-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+    <div class="bg-gray-900 border border-gray-800 p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl space-y-4">
+      <div class="flex items-center gap-3 text-amber-400">
+        <i class="fa-solid fa-circle-info text-2xl"></i>
+        <h3 id="alert-title" class="text-lg font-bold text-white">Message</h3>
+      </div>
+      <p id="alert-text" class="text-sm text-gray-400 leading-relaxed"></p>
+      <button id="alert-btn" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold text-sm transition">
+        Continue
+      </button>
+    </div>
+  </div>
+
+  <!-- 3D Scene Code -->
+  <script>
+    // --- Step Configurations ---
+    const STEPS = [
+      {
+        title: "Introduction: Breadboard Workspace",
+        desc: "Welcome! We're building an astable (blinking) LED multivibrator using the classic 555 precision timer. Our canvas has standard terminal rows and power rails (Red for +9V, Blue/Black for 0V GND). Rotate the view to inspect the empty prototyping surface.",
+        components: ["Standard Breadboard"],
+        highlightHoles: []
+      },
+      {
+        title: "Step 1: Mount the 555 Timer IC",
+        desc: "Place the 555 Timer integrated circuit (DIP-8 package) across the central isolation ravine (Row 15 to 18). Ensure the notch points left (Pin 1 is bottom-left, Pin 5 is top-right). This IC operates as a continuous oscillator.",
+        components: ["555 Timer IC (DIP-8)"],
+        highlightHoles: ["E15", "E16", "E17", "E18", "F15", "F16", "F17", "F18"]
+      },
+      {
+        title: "Step 2: Connect Power Rails",
+        desc: "Bridge the top and bottom power rails using thick jumper wires so that both sides have access to the +9V source and Ground (GND). Red wires route positive, Blue/Black wires route Ground.",
+        components: ["Power Bridging Jumpers"],
+        highlightHoles: ["red_top_1", "blue_top_1", "red_bot_1", "blue_bot_1"]
+      },
+      {
+        title: "Step 3: Ground Pin 1",
+        desc: "Run a short jumper wire from Pin 1 of the 555 timer (Row E15) directly to the bottom Blue Ground (GND) rail. This provides the reference zero voltage for the IC logic.",
+        components: ["Black Ground Jumper"],
+        highlightHoles: ["E15", "blue_bot_15"]
+      },
+      {
+        title: "Step 4: Connect Vcc (Pin 8) & Reset (Pin 4)",
+        desc: "We must power the chip and keep it active. Connect Pin 8 (Row F15) to the top +9V Red rail. Then, connect Pin 4 (Row E18, Reset Pin) to the bottom +9V Red rail to disable reset.",
+        components: ["Red Jumpers (x2)"],
+        highlightHoles: ["F15", "red_top_15", "E18", "red_bot_18"]
+      },
+      {
+        title: "Step 5: Connect R1 (1kΩ Resistor)",
+        desc: "Install the first resistor R1 (1kΩ, coded Brown-Black-Red-Gold) between +9V (top Red rail) and Pin 7 (Row F16). This resistor begins the charging loop of our timing capacitor.",
+        components: ["1kΩ Resistor (R1)"],
+        highlightHoles: ["red_top_16", "F16"]
+      },
+      {
+        title: "Step 6: Connect R2 (470kΩ Resistor)",
+        desc: "Install the giant timing resistor R2 (470kΩ, coded Yellow-Violet-Yellow-Gold) between Pin 7 (Row F16) and Pin 6 (Row F17). R2 determines both charge and discharge times of the loop.",
+        components: ["470kΩ Resistor (R2)"],
+        highlightHoles: ["F16", "F17"]
+      },
+      {
+        title: "Step 7: Bridge Trigger & Threshold Pins",
+        desc: "The 555 timer needs to compare its capacitor voltage. Use a yellow jumper wire to bridge Pin 2 (Row E16) and Pin 6 (Row F17). This links the auto-trigger system.",
+        components: ["Yellow Jumper Wire"],
+        highlightHoles: ["E16", "F17"]
+      },
+      {
+        title: "Step 8: Insert Capacitor C1 (1μF)",
+        desc: "Place the electrolytic capacitor C1 (1μF) with its positive lead in Pin 2 (Row E16) and its negative (marked stripe) lead in the Ground (GND) Blue Rail. This holds the timing electric charge.",
+        components: ["1μF Polarized Capacitor"],
+        highlightHoles: ["E16", "blue_bot_16"]
+      },
+      {
+        title: "Step 9: Connect R3 (1kΩ Resistor)",
+        desc: "To limit current to our signaling LED, connect a 1kΩ resistor R3 (Brown-Black-Red-Gold) from Pin 3 Output (Row E17) to a free terminal column like Row E22.",
+        components: ["1kΩ Resistor (R3)"],
+        highlightHoles: ["E17", "E22"]
+      },
+      {
+        title: "Step 10: Insert Output LED (D1)",
+        desc: "Insert the red LED D1. Place the longer, positive lead (Anode) into Row E22 (meeting R3) and the shorter flat lead (Cathode) into the Ground Blue Rail. The blinker assembly is complete!",
+        components: ["Red High-Intensity LED"],
+        highlightHoles: ["E22", "blue_bot_22"]
+      },
+      {
+        title: "Step 11: Real-time Astable Simulation",
+        desc: "Success! The circuit is now powered. Notice the capacitor C1 charging through (R1 + R2) up to 2/3 of 9V, turning on the LED. At 6V, the discharge pin triggers, drawing charge through R2 down to 1/3 (3V), toggling Pin 3 to Ground (LED Off).",
+        components: ["Powered Blinker Simulation"],
+        highlightHoles: []
+      }
+    ];
+
+    // --- State Variables ---
+    let currentStep = 0;
+    let maxUnlockedStep = 0;
+    let isSimulationRunning = false;
+    let simSpeed = 1.0;
+
+    // Circuit Math variables (Astable 555 logic)
+    const Vcc = 9.0;
+    let Vc = 3.0; // Start at 1/3 Vcc
+    let pin3Output = Vcc; // Starts High
+    let cyclePhase = "charging"; // or "discharging"
+    const R1 = 1000.0;
+    const R2 = 470000.0;
+    const C1 = 0.000001; // 1 uF
+    let lastTime = performance.now();
+
+    // Visual current flow particles
+    const particles = [];
+    const particleFlowTracks = [];
+
+    // --- UI Interactions ---
+    const stepLabel = document.getElementById("step-label");
+    const assemblyProgress = document.getElementById("assembly-progress");
+    const stepProgressBar = document.getElementById("step-progress-bar");
+    const stepTitle = document.getElementById("step-title");
+    const stepDesc = document.getElementById("step-desc");
+    const componentBadges = document.getElementById("component-badges");
+    const liveSimulationPanel = document.getElementById("live-simulation-panel");
+    const scopeCanvas = document.getElementById("scope-canvas");
+    const scopeCtx = scopeCanvas.getContext("2d");
+
+    const btnPrev = document.getElementById("btn-prev");
+    const btnNext = document.getElementById("btn-next");
+    const btnSkip = document.getElementById("btn-skip");
+    const btnReset = document.getElementById("btn-reset");
+    const btnView3d = document.getElementById("btn-view-3d");
+
+    // Modal Alert
+    const alertModal = document.getElementById("alert-modal");
+    const alertTitle = document.getElementById("alert-title");
+    const alertText = document.getElementById("alert-text");
+    const alertBtn = document.getElementById("alert-btn");
+
+    function showAlert(title, text) {
+      alertTitle.innerText = title;
+      alertText.innerText = text;
+      alertModal.classList.remove("hidden");
+    }
+
+    alertBtn.addEventListener("click", () => {
+      alertModal.classList.add("hidden");
+    });
+
+    // --- Graph Plotting Array ---
+    const scopeHistory = []; // pairs of {vc, vout}
+    const maxScopePoints = 180;
+
+    // --- Initial setup of Buttons ---
+    btnPrev.addEventListener("click", () => navigateStep(currentStep - 1));
+    btnNext.addEventListener("click", () => {
+      if (currentStep < STEPS.length - 1) {
+        navigateStep(currentStep + 1);
+      } else {
+        // Final run
+        btnView3d.click();
+      }
+    });
+    btnSkip.addEventListener("click", () => navigateStep(STEPS.length - 1));
+    btnReset.addEventListener("click", () => {
+      if(confirm("Are you sure you want to reset your assembly progress?")) {
+        navigateStep(0);
+      }
+    });
+
+    btnView3d.addEventListener("click", () => {
+      navigateStep(STEPS.length - 1);
+      isSimulationRunning = true;
+      showAlert("Circuit Simulation Mode", "The 555 astable circuit is now fully powered. You can observe interactive charge flow, monitor capacitor cycles on the live oscilloscope, and adjust simulation speeds dynamically!");
+    });
+
+    document.getElementById("sim-speed").addEventListener("input", (e) => {
+      simSpeed = parseFloat(e.target.value);
+      document.getElementById("speed-label").innerText = simSpeed.toFixed(1) + "x";
+    });
+
+    function navigateStep(targetStep) {
+      if (targetStep < 0 || targetStep >= STEPS.length) return;
+      currentStep = targetStep;
+
+      // Update progress variables
+      if (currentStep > maxUnlockedStep) {
+        maxUnlockedStep = currentStep;
+      }
+
+      // Update buttons
+      btnPrev.disabled = currentStep === 0;
+      if (currentStep === STEPS.length - 1) {
+        btnNext.innerHTML = `<span>Simulate</span> <i class="fa-solid fa-play animate-pulse text-emerald-400"></i>`;
+        btnSkip.classList.add("invisible");
+        liveSimulationPanel.classList.remove("hidden");
+        isSimulationRunning = true;
+      } else {
+        btnNext.innerHTML = `<span>Next</span> <i class="fa-solid fa-chevron-right"></i>`;
+        btnSkip.classList.remove("invisible");
+        liveSimulationPanel.classList.add("hidden");
+        isSimulationRunning = false;
+      }
+
+      // Update UI Text
+      stepLabel.innerText = `Step ${currentStep} of ${STEPS.length - 1}`;
+      const percentage = Math.round((currentStep / (STEPS.length - 1)) * 100);
+      assemblyProgress.innerText = `${percentage}% Completed`;
+      stepProgressBar.style.width = `${percentage}%`;
+
+      const info = STEPS[currentStep];
+      stepTitle.innerHTML = `<span class="bg-indigo-600/30 text-indigo-300 w-6 h-6 rounded-full inline-flex items-center justify-center text-xs font-mono border border-indigo-500/20">${currentStep}</span> ${info.title}`;
+      stepDesc.innerText = info.desc;
+
+      // Badges
+      componentBadges.innerHTML = "";
+      info.components.forEach(comp => {
+        const span = document.createElement("span");
+        span.className = "px-2.5 py-1 bg-gray-800 text-gray-300 rounded-md text-xs font-medium border border-gray-700/60 flex items-center gap-1.5";
+        span.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> ${comp}`;
+        componentBadges.appendChild(span);
+      });
+
+      // Show/Hide meshes in Three.js based on current assembly step
+      updateComponentVisibility();
+      highlightActiveHoles(info.highlightHoles);
+    }
+
+    // --- Three.js Setup ---
+    const container = document.getElementById("three-canvas-container");
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0d14);
+    // Add atmospheric background fog
+    scene.fog = new THREE.FogExp2(0x0a0d14, 0.015);
+
+    const camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(0, 18, 22);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 - 0.05; // don't go below ground
+    controls.minDistance = 6;
+    controls.maxDistance = 45;
+    controls.target.set(0, -1, 0);
+
+    // Resize listener
+    window.addEventListener("resize", () => {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    // --- Lighting ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    dirLight.position.set(15, 25, 10);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.bias = -0.0001;
+    scene.add(dirLight);
+
+    // Glowing subtle secondary light from side
+    const fillLight = new THREE.DirectionalLight(0x818cf8, 0.3);
+    fillLight.position.set(-15, 10, -10);
+    scene.add(fillLight);
+
+    // Dynamic LED PointLight
+    const ledPointLight = new THREE.PointLight(0xff3b30, 0, 8);
+    ledPointLight.position.set(5.5, 0.8, 1);
+    scene.add(ledPointLight);
+
+    // --- Breadboard Layout Math Helpers ---
+    // Zero-point mapping: center of board is (0,0,0)
+    // Rows: 1 to 30. Column separation distance = 0.4 units. Center divider space = 1.0 units.
+    // Breadboard coordinates:
+    // Rows range from -6 (Row 1) to 6 (Row 30) along Z, steps of 0.42. Let's make it standard:
+    // row 1: Z = -6, row 30: Z = 6. -> width = 12 units. Step = 12 / 29 = 0.4137 units.
+    const ROW_STEP = 0.45;
+    const COL_STEP = 0.45;
+    const MID_GAP = 1.1; // Central RAVINE gap
+
+    function getHoleCoords(holeId) {
+      if (!holeId) return new THREE.Vector3(0,0,0);
+      
+      // Parse power rails
+      if (holeId.startsWith("red_top")) {
+        return new THREE.Vector3(-1.8, 0.05, -5.5 + Math.random() * 11);
+      }
+      if (holeId.startsWith("blue_top")) {
+        return new THREE.Vector3(-2.2, 0.05, -5.5 + Math.random() * 11);
+      }
+      if (holeId.startsWith("red_bot")) {
+        return new THREE.Vector3(2.2, 0.05, -5.5 + Math.random() * 11);
+      }
+      if (holeId.startsWith("blue_bot")) {
+        return new THREE.Vector3(1.8, 0.05, -5.5 + Math.random() * 11);
+      }
+
+      // Format e.g., "E15" or "F17"
+      const colLetter = holeId.charAt(0);
+      const rowNum = parseInt(holeId.substring(1));
+      
+      const z = -6.5 + (rowNum - 1) * ROW_STEP; // Rows 1 to 30 along Z axis
+      
+      let x = 0;
+      // Columns: A,B,C,D,E (bottom block relative to central ravines)
+      // Columns: F,G,H,I,J (top block relative to central ravines)
+      const colsLower = ["E", "D", "C", "B", "A"];
+      const colsUpper = ["F", "G", "H", "I", "J"];
+
+      if (colsLower.includes(colLetter)) {
+        const colIndex = colsLower.indexOf(colLetter);
+        x = -MID_GAP / 2 - (colIndex * COL_STEP);
+      } else if (colsUpper.includes(colLetter)) {
+        const colIndex = colsUpper.indexOf(colLetter);
+        x = MID_GAP / 2 + (colIndex * COL_STEP);
+      }
+
+      return new THREE.Vector3(x, 0.05, z);
+    }
+
+    // --- Mesh Management Groups ---
+    const componentsGroup = new THREE.Group();
+    scene.add(componentsGroup);
+
+    const currentIndicatorGroup = new THREE.Group();
+    scene.add(currentIndicatorGroup);
+
+    const visualHoleMarkers = [];
+
+    // --- Procedural Generation of Breadboard ---
+    function createBreadboard() {
+      const boardW = 6.2;
+      const boardH = 0.6;
+      const boardL = 15;
+
+      // Base plate
+      const boardGeo = new THREE.BoxGeometry(boardW, boardH, boardL);
+      // Soft cream plastic color
+      const boardMat = new THREE.MeshStandardMaterial({
+        color: 0xdedede,
+        roughness: 0.7,
+        metalness: 0.1
+      });
+      const boardMesh = new THREE.Mesh(boardGeo, boardMat);
+      boardMesh.position.y = -boardH / 2;
+      boardMesh.receiveShadow = true;
+      scene.add(boardMesh);
+
+      // Backplate backing
+      const backPlateGeo = new THREE.BoxGeometry(boardW + 0.4, 0.1, boardL + 0.4);
+      const backPlateMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.9 });
+      const backPlate = new THREE.Mesh(backPlateGeo, backPlateMat);
+      backPlate.position.y = -boardH - 0.05;
+      scene.add(backPlate);
+
+      // Rails colored lines (Red & Blue lines)
+      const lineGeoRed = new THREE.BoxGeometry(0.04, 0.01, 14);
+      const lineMatRed = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+      const lineGeoBlue = new THREE.BoxGeometry(0.04, 0.01, 14);
+      const lineMatBlue = new THREE.MeshBasicMaterial({ color: 0x3b82f6 });
+
+      const topRed = new THREE.Mesh(lineGeoRed, lineMatRed);
+      topRed.position.set(-2.0, 0.01, 0);
+      scene.add(topRed);
+
+      const topBlue = new THREE.Mesh(lineGeoBlue, lineMatBlue);
+      topBlue.position.set(-2.4, 0.01, 0);
+      scene.add(topBlue);
+
+      const botRed = new THREE.Mesh(lineGeoRed, lineMatRed);
+      botRed.position.set(2.0, 0.01, 0);
+      scene.add(botRed);
+
+      const botBlue = new THREE.Mesh(lineGeoBlue, lineMatBlue);
+      botBlue.position.set(2.4, 0.01, 0);
+      scene.add(botBlue);
+
+      // Generate all contact holes for visual feedback & layout depth
+      const holeGeo = new THREE.BoxGeometry(0.06, 0.01, 0.06);
+      const holeMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.9, metalness: 0.9 });
+
+      const cols = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+      for (let r = 1; r <= 30; r++) {
+        cols.forEach(col => {
+          const hp = getHoleCoords(col + r);
+          const hMesh = new THREE.Mesh(holeGeo, holeMat);
+          hMesh.position.copy(hp);
+          hMesh.position.y += 0.005;
+          scene.add(hMesh);
+        });
+
+        // Add power rail holes
+        const railCoords = [
+          new THREE.Vector3(-1.8, 0.055, -6.5 + (r - 1) * ROW_STEP), // top red
+          new THREE.Vector3(-2.2, 0.055, -6.5 + (r - 1) * ROW_STEP), // top blue
+          new THREE.Vector3(1.8, 0.055, -6.5 + (r - 1) * ROW_STEP),  // bottom red
+          new THREE.Vector3(2.2, 0.055, -6.5 + (r - 1) * ROW_STEP)   // bottom blue
+        ];
+        railCoords.forEach(pos => {
+          const hMesh = new THREE.Mesh(holeGeo, holeMat);
+          hMesh.position.copy(pos);
+          scene.add(hMesh);
+        });
+      }
+
+      // Add Row Numbers on the board for real feel
+      const numbersCanvas = document.createElement("canvas");
+      numbersCanvas.width = 128;
+      numbersCanvas.height = 1024;
+      const ctxNum = numbersCanvas.getContext("2d");
+      ctxNum.fillStyle = "#dedede";
+      ctxNum.fillRect(0,0,128,1024);
+      ctxNum.fillStyle = "#6b7280";
+      ctxNum.font = "bold 32px sans-serif";
+      ctxNum.textAlign = "center";
+      for (let r = 1; r <= 30; r++) {
+        const yPos = 34 + (r - 1) * 33.6;
+        ctxNum.fillText(r.toString(), 64, yPos);
+      }
+      const numTex = new THREE.CanvasTexture(numbersCanvas);
+      const numMat = new THREE.MeshBasicMaterial({ map: numTex, transparent: true });
+
+      const numStripL = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 13.5), numMat);
+      numStripL.rotation.x = -Math.PI/2;
+      numStripL.position.set(-0.25, 0.015, 0);
+      scene.add(numStripL);
+
+      const numStripR = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 13.5), numMat);
+      numStripR.rotation.x = -Math.PI/2;
+      numStripR.position.set(0.25, 0.015, 0);
+      scene.add(numStripR);
+    }
+
+    // --- Component Generation Functions ---
+
+    // 1. NE555 IC Generation
+    let ne555Mesh;
+    function create555IC() {
+      const group = new THREE.Group();
+
+      // Plastic body
+      const bodyGeo = new THREE.BoxGeometry(1.2, 0.45, 1.6);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.5 });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.position.y = 0.35;
+      body.castShadow = true;
+      group.add(body);
+
+      // Half-moon Notch to indicate pin-1 orientation
+      const notchGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.5, 12, 1, false, 0, Math.PI);
+      const notchMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.6 });
+      const notch = new THREE.Mesh(notchGeo, notchMat);
+      notch.position.set(-0.6, 0.35, 0);
+      notch.rotation.z = Math.PI / 2;
+      group.add(notch);
+
+      // Pins (4 on each side)
+      const pinCoordinates = [
+        // Bottom (Pins 1 - 4) -> mapping on Rows 15 to 18
+        { x: -0.5, z: -0.67 }, // Pin 1 (Row 15)
+        { x: -0.5, z: -0.22 }, // Pin 2 (Row 16)
+        { x: -0.5, z: 0.22 },  // Pin 3 (Row 17)
+        { x: -0.5, z: 0.67 },  // Pin 4 (Row 18)
+        // Top (Pins 5 - 8) -> Row 18 to 15
+        { x: 0.5, z: 0.67 },   // Pin 5 (Row 18)
+        { x: 0.5, z: 0.22 },   // Pin 6 (Row 17)
+        { x: 0.5, z: -0.22 },  // Pin 7 (Row 16)
+        { x: 0.5, z: -0.67 }   // Pin 8 (Row 15)
+      ];
+
+      const pinMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.9, roughness: 0.1 });
+      pinCoordinates.forEach(pos => {
+        const pinLeg = new THREE.Group();
+        // horizontal out
+        const ph = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.04, 0.08), pinMat);
+        ph.position.set(pos.x > 0 ? 0.08 : -0.08, 0, 0);
+        pinLeg.add(ph);
+        // vertical down
+        const pv = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.45, 0.08), pinMat);
+        pv.position.set(pos.x > 0 ? 0.15 : -0.15, -0.2, 0);
+        pinLeg.add(pv);
+
+        pinLeg.position.set(pos.x, 0.3, pos.z);
+        group.add(pinLeg);
+      });
+
+      // Label NE555
+      const labelCanvas = document.createElement("canvas");
+      labelCanvas.width = 256;
+      labelCanvas.height = 128;
+      const ctxL = labelCanvas.getContext("2d");
+      ctxL.fillStyle = "#111827";
+      ctxL.fillRect(0,0,256,128);
+      ctxL.fillStyle = "#9ca3af";
+      ctxL.font = "bold 56px Courier New";
+      ctxL.textAlign = "center";
+      ctxL.textBaseline = "middle";
+      ctxL.fillText("LM555N", 128, 64);
+      const labelTex = new THREE.CanvasTexture(labelCanvas);
+      const labelMat = new THREE.MeshBasicMaterial({ map: labelTex });
+      const labelMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.4), labelMat);
+      labelMesh.rotation.x = -Math.PI / 2;
+      labelMesh.rotation.z = Math.PI / 2;
+      labelMesh.position.set(0, 0.58, 0);
+      group.add(labelMesh);
+
+      // Absolute positioning to align with row 15-18 on board
+      group.position.set(0, 0.1, -6.5 + (16.5 - 1) * ROW_STEP);
+      group.name = "555_IC";
+      ne555Mesh = group;
+      componentsGroup.add(group);
+    }
+
+    // 2. Beautiful Wire Generator
+    function createJumperWire(startHole, endHole, colorHex, heightArc = 0.8, isStraight = false) {
+      const start = getHoleCoords(startHole);
+      const end = getHoleCoords(endHole);
+
+      // Curve generation
+      const points = [];
+      points.push(new THREE.Vector3(start.x, 0, start.z));
+      points.push(new THREE.Vector3(start.x, heightArc * 0.4, start.z));
+
+      if (isStraight) {
+        points.push(new THREE.Vector3((start.x + end.x) / 2, heightArc, (start.z + end.z) / 2));
+      } else {
+        // Create organic wire curve behavior
+        const midPoint = new THREE.Vector3(
+          (start.x + end.x) / 2 + (Math.random() - 0.5) * 0.2,
+          heightArc,
+          (start.z + end.z) / 2 + (Math.random() - 0.5) * 0.2
+        );
+        points.push(midPoint);
+      }
+
+      points.push(new THREE.Vector3(end.x, heightArc * 0.4, end.z));
+      points.push(new THREE.Vector3(end.x, 0, end.z));
+
+      const curve = new THREE.CatmullRomCurve3(points);
+      const tubeGeo = new THREE.TubeGeometry(curve, 32, 0.05, 8, false);
+      const tubeMat = new THREE.MeshStandardMaterial({
+        color: colorHex,
+        roughness: 0.3,
+        metalness: 0.1
+      });
+      const wireMesh = new THREE.Mesh(tubeGeo, tubeMat);
+      wireMesh.castShadow = true;
+      wireMesh.receiveShadow = true;
+
+      // Track curve for particle animation
+      particleFlowTracks.push({
+        curve: curve,
+        active: false,
+        direction: 1 // 1: forward, -1: backward
+      });
+
+      return wireMesh;
+    }
+
+    // 3. Resistor Generator with Color Bands
+    function createResistor(startHole, endHole, bands, name) {
+      const group = new THREE.Group();
+      const start = getHoleCoords(startHole);
+      const end = getHoleCoords(endHole);
+
+      const midX = (start.x + end.x) / 2;
+      const midZ = (start.z + end.z) / 2;
+      const height = 0.6;
+
+      // Resistor body center position
+      const bodyPos = new THREE.Vector3(midX, height, midZ);
+
+      // Leads (Metal Wires descending to holes)
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.9, roughness: 0.2 });
+      const leadPointsL = [
+        new THREE.Vector3(start.x, 0, start.z),
+        new THREE.Vector3(start.x, height, start.z),
+        new THREE.Vector3(midX - 0.4, height, midZ)
+      ];
+      const leadCurveL = new THREE.CatmullRomCurve3(leadPointsL);
+      const leadMeshL = new THREE.Mesh(new THREE.TubeGeometry(leadCurveL, 16, 0.015, 6, false), metalMat);
+      group.add(leadMeshL);
+
+      const leadPointsR = [
+        new THREE.Vector3(midX + 0.4, height, midZ),
+        new THREE.Vector3(end.x, height, end.z),
+        new THREE.Vector3(end.x, 0, end.z)
+      ];
+      const leadCurveR = new THREE.CatmullRomCurve3(leadPointsR);
+      const leadMeshR = new THREE.Mesh(new THREE.TubeGeometry(leadCurveR, 16, 0.015, 6, false), metalMat);
+      group.add(leadMeshR);
+
+      // Resistor Body (Beige/Tan Cylinder)
+      const bodyLength = 0.6;
+      const bodyRadius = 0.14;
+      const bodyGeo = new THREE.CylinderGeometry(bodyRadius, bodyRadius, bodyLength, 12);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd6c5b0, roughness: 0.6 });
+      const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+
+      // Orient cylinder between start and end
+      bodyMesh.position.copy(bodyPos);
+      const dirVec = new THREE.Vector3().subVectors(end, start).normalize();
+      const angle = Math.atan2(dirVec.z, dirVec.x);
+      bodyMesh.rotation.y = -angle;
+      bodyMesh.rotation.z = Math.PI / 2;
+      bodyMesh.castShadow = true;
+      group.add(bodyMesh);
+
+      // Add Bands
+      // Band color hex map
+      const bandColors = {
+        brown: 0x6b3a0e,
+        black: 0x111827,
+        red: 0xef4444,
+        yellow: 0xeab308,
+        violet: 0x7c3aed,
+        gold: 0xd97706
+      };
+
+      const bandWidth = 0.04;
+      bands.forEach((bColorName, index) => {
+        const bandGeo = new THREE.CylinderGeometry(bodyRadius + 0.005, bodyRadius + 0.005, bandWidth, 12);
+        const bandMat = new THREE.MeshBasicMaterial({ color: bandColors[bColorName] });
+        const bandMesh = new THREE.Mesh(bandGeo, bandMat);
+        
+        // Offset along body
+        const offset = -bodyLength/2 + 0.12 + index * 0.11;
+        bandMesh.position.set(0, offset, 0);
+        bodyMesh.add(bandMesh);
+      });
+
+      group.name = name;
+      componentsGroup.add(group);
+
+      // Complete path spline tracking for current flow particles
+      const fullPathPoints = [
+        new THREE.Vector3(start.x, 0, start.z),
+        new THREE.Vector3(start.x, height, start.z),
+        bodyPos,
+        new THREE.Vector3(end.x, height, end.z),
+        new THREE.Vector3(end.x, 0, end.z)
+      ];
+      const fullPathCurve = new THREE.CatmullRomCurve3(fullPathPoints);
+      particleFlowTracks.push({
+        curve: fullPathCurve,
+        active: false,
+        direction: 1
+      });
+    }
+
+    // 4. Capacitor Generator (1uF Electrolytic)
+    function createCapacitor(startHole, endHole, name) {
+      const group = new THREE.Group();
+      const start = getHoleCoords(startHole);
+      const end = getHoleCoords(endHole);
+
+      // Legs
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.8, roughness: 0.2 });
+      const leg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.8, 6), metalMat);
+      leg1.position.set(-0.08, 0.3, 0);
+      group.add(leg1);
+
+      const leg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.8, 6), metalMat);
+      leg2.position.set(0.08, 0.3, 0);
+      group.add(leg2);
+
+      // Can body (Blue cylinder)
+      const bodyRadius = 0.25;
+      const bodyHeight = 0.7;
+      const canGeo = new THREE.CylinderGeometry(bodyRadius, bodyRadius, bodyHeight, 16);
+      const canMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.4, metalness: 0.2 });
+      const can = new THREE.Mesh(canGeo, canMat);
+      can.position.y = 0.8;
+      can.castShadow = true;
+      group.add(can);
+
+      // Silver Stripe (Negative indication stripe)
+      const stripeGeo = new THREE.CylinderGeometry(bodyRadius + 0.005, bodyRadius + 0.005, bodyHeight, 16, 1, false, -Math.PI/6, Math.PI/3);
+      const stripeMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, roughness: 0.3 });
+      const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+      can.add(stripe);
+
+      // Positioning
+      group.position.set((start.x + end.x) / 2, 0, (start.z + end.z) / 2);
+      group.name = name;
+      componentsGroup.add(group);
+
+      // Register flow track
+      const capCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(start.x, 0, start.z),
+        new THREE.Vector3(start.x, 0.8, start.z),
+        new THREE.Vector3(end.x, 0.8, end.z),
+        new THREE.Vector3(end.x, 0, end.z)
+      ]);
+      particleFlowTracks.push({
+        curve: capCurve,
+        active: false,
+        direction: 1
+      });
+    }
+
+    // 5. LED Generation
+    let ledAnodeDome;
+    function createLED(startHole, endHole, name) {
+      const group = new THREE.Group();
+      const start = getHoleCoords(startHole);
+      const end = getHoleCoords(endHole);
+
+      // Metal Legs
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.9, roughness: 0.1 });
+      const anodeLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.0, 6), metalMat);
+      anodeLeg.position.set(-0.08, 0.4, 0);
+      group.add(anodeLeg);
+
+      const cathodeLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.8, 6), metalMat);
+      cathodeLeg.position.set(0.08, 0.3, 0);
+      group.add(cathodeLeg);
+
+      // Plastic Rim Base
+      const rimGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.06, 16);
+      const ledBaseMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, transparent: true, opacity: 0.85, roughness: 0.1 });
+      const rim = new THREE.Mesh(rimGeo, ledBaseMat);
+      rim.position.y = 0.8;
+      group.add(rim);
+
+      // Dome
+      const domeGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.4, 16);
+      const dome = new THREE.Mesh(domeGeo, ledBaseMat);
+      dome.position.y = 1.0;
+      group.add(dome);
+
+      const topSphereGeo = new THREE.SphereGeometry(0.2, 16, 8, 0, Math.PI*2, 0, Math.PI/2);
+      const topSphere = new THREE.Mesh(topSphereGeo, ledBaseMat);
+      topSphere.position.y = 1.2;
+      group.add(topSphere);
+
+      // Dynamic LED Glowing emission part inside dome
+      const emitGeo = new THREE.SphereGeometry(0.08, 8, 8);
+      const emitMat = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
+      ledAnodeDome = new THREE.Mesh(emitGeo, emitMat);
+      ledAnodeDome.position.y = 1.0;
+      group.add(ledAnodeDome);
+
+      group.position.set((start.x + end.x) / 2, 0, (start.z + end.z) / 2);
+      group.name = name;
+      componentsGroup.add(group);
+
+      // Flow Path spline
+      const ledCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(start.x, 0, start.z),
+        new THREE.Vector3(start.x, 0.9, start.z),
+        new THREE.Vector3(end.x, 0.9, end.z),
+        new THREE.Vector3(end.x, 0, end.z)
+      ]);
+      particleFlowTracks.push({
+        curve: ledCurve,
+        active: false,
+        direction: 1
+      });
+    }
+
+    // --- Create and Populate All Components on Load ---
+    function initializeComponents() {
+      createBreadboard();
+      create555IC(); // Step 1
+
+      // Step 2: Power Bridging jumpers
+      const jumperBridge1 = createJumperWire("red_top_1", "red_bot_1", 0xef4444, 1.2);
+      jumperBridge1.name = "power_bridge_1";
+      componentsGroup.add(jumperBridge1);
+
+      const jumperBridge2 = createJumperWire("blue_top_1", "blue_bot_1", 0x2563eb, 1.2);
+      jumperBridge2.name = "power_bridge_2";
+      componentsGroup.add(jumperBridge2);
+
+      // Step 3: GND Wire Pin 1
+      const gndWire = createJumperWire("E15", "blue_bot_15", 0x111827, 0.6);
+      gndWire.name = "gnd_wire";
+      componentsGroup.add(gndWire);
+
+      // Step 4: Vcc (Pin 8) & Reset (Pin 4) Jumpers
+      const vccWire = createJumperWire("F15", "red_top_15", 0xef4444, 0.7);
+      vccWire.name = "vcc_wire";
+      componentsGroup.add(vccWire);
+
+      const rstWire = createJumperWire("E18", "red_bot_18", 0xef4444, 0.7);
+      rstWire.name = "rst_wire";
+      componentsGroup.add(rstWire);
+
+      // Step 5: R1 Resistor (1k) Vcc -> Pin 7
+      createResistor("red_top_16", "F16", ["brown", "black", "red", "gold"], "R1");
+
+      // Step 6: R2 Resistor (470k) Pin 7 -> Pin 6
+      createResistor("F16", "F17", ["yellow", "violet", "yellow", "gold"], "R2");
+
+      // Step 7: Bridge Trigger (Pin 2) & Threshold (Pin 6)
+      const trigThreshBridge = createJumperWire("E16", "F17", "yellow", 1.4);
+      trigThreshBridge.name = "trig_thresh_wire";
+      componentsGroup.add(trigThreshBridge);
+
+      // Step 8: Capacitor C1
+      createCapacitor("E16", "blue_bot_16", "C1");
+
+      // Step 9: Output R3 Resistor (1k)
+      createResistor("E17", "E22", ["brown", "black", "red", "gold"], "R3");
+
+      // Step 10: LED D1
+      createLED("E22", "blue_bot_22", "D1");
+
+      // Hide loading spinner
+      document.getElementById("loading-spinner").style.opacity = 0;
+      setTimeout(() => document.getElementById("loading-spinner").style.display = "none", 500);
+    }
+
+    // --- Component Visibility Controller ---
+    // Controls which meshes are shown based on the current step.
+    function updateComponentVisibility() {
+      // Set all invisible first
+      componentsGroup.children.forEach(c => {
+        c.visible = false;
+      });
+
+      // Show based on step index
+      if (currentStep >= 1) {
+        if (ne555Mesh) ne555Mesh.visible = true;
+      }
+      if (currentStep >= 2) {
+        const c1 = componentsGroup.getObjectByName("power_bridge_1");
+        const c2 = componentsGroup.getObjectByName("power_bridge_2");
+        if (c1) c1.visible = true;
+        if (c2) c2.visible = true;
+      }
+      if (currentStep >= 3) {
+        const gnd = componentsGroup.getObjectByName("gnd_wire");
+        if (gnd) gnd.visible = true;
+      }
+      if (currentStep >= 4) {
+        const vcc = componentsGroup.getObjectByName("vcc_wire");
+        const rst = componentsGroup.getObjectByName("rst_wire");
+        if (vcc) vcc.visible = true;
+        if (rst) rst.visible = true;
+      }
+      if (currentStep >= 5) {
+        const r1 = componentsGroup.getObjectByName("R1");
+        if (r1) r1.visible = true;
+      }
+      if (currentStep >= 6) {
+        const r2 = componentsGroup.getObjectByName("R2");
+        if (r2) r2.visible = true;
+      }
+      if (currentStep >= 7) {
+        const ttb = componentsGroup.getObjectByName("trig_thresh_wire");
+        if (ttb) ttb.visible = true;
+      }
+      if (currentStep >= 8) {
+        const c1 = componentsGroup.getObjectByName("C1");
+        if (c1) c1.visible = true;
+      }
+      if (currentStep >= 9) {
+        const r3 = componentsGroup.getObjectByName("R3");
+        if (r3) r3.visible = true;
+      }
+      if (currentStep >= 10) {
+        const led = componentsGroup.getObjectByName("D1");
+        if (led) led.visible = true;
+      }
+    }
+
+    // --- Hole Highlighting Logic ---
+    function highlightActiveHoles(holeList) {
+      // Clear previous indicators
+      visualHoleMarkers.forEach(marker => scene.remove(marker));
+      visualHoleMarkers.length = 0;
+
+      const ringGeo = new THREE.RingGeometry(0.1, 0.15, 16);
+      ringGeo.rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x818cf8, side: THREE.DoubleSide });
+
+      holeList.forEach(holeId => {
+        const pos = getHoleCoords(holeId);
+        const marker = new THREE.Mesh(ringGeo, ringMat);
+        // Slightly raise to avoid Z-fighting
+        marker.position.copy(pos);
+        marker.position.y += 0.08;
+        scene.add(marker);
+        visualHoleMarkers.push(marker);
+      });
+    }
+
+    // --- Interactive Current flow Particle System ---
+    const maxParticles = 60;
+    const particleGeometry = new THREE.SphereGeometry(0.045, 8, 8);
+    const particleMaterial = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+
+    // Instanced particle pool
+    const flowParticles = [];
+    for(let i=0; i<maxParticles; i++) {
+      const p = new THREE.Mesh(particleGeometry, particleMaterial);
+      p.visible = false;
+      scene.add(p);
+      flowParticles.push({
+        mesh: p,
+        trackIndex: 0,
+        progress: Math.random(), // disperse start
+        speed: 0.4 + Math.random() * 0.3
+      });
+    }
+
+    function updateParticles(dt) {
+      if (!isSimulationRunning) {
+        flowParticles.forEach(p => p.mesh.visible = false);
+        return;
+      }
+
+      // Configure active paths based on charging/discharging phases
+      // Particle Flow Tracks indices created in order:
+      // 0: power_bridge_1
+      // 1: power_bridge_2
+      // 2: gnd_wire
+      // 3: vcc_wire
+      // 4: rst_wire
+      // 5: R1 Path
+      // 6: R2 Path
+      // 7: trig_thresh_wire
+      // 8: C1 Path
+      // 9: R3 Path
+      // 10: LED Path
+
+      // Activate corresponding current pathways depending on oscillator cycle
+      const activeTracks = [];
+
+      // Main VCC supply loop
+      activeTracks.push({ index: 0, dir: 1 }); // bridge
+      activeTracks.push({ index: 3, dir: 1 }); // pin 8 VCC
+      activeTracks.push({ index: 5, dir: 1 }); // Through R1
+
+      if (cyclePhase === "charging") {
+        // Charging: Current goes through R1 -> R2 -> Capacitor
+        activeTracks.push({ index: 6, dir: 1 }); // Through R2 (forward)
+        activeTracks.push({ index: 8, dir: 1 }); // Capacitor charging
+        activeTracks.push({ index: 9, dir: 1 }); // Pin 3 high: Output R3 active
+        activeTracks.push({ index: 10, dir: 1 }); // LED active
+      } else {
+        // Discharging: Current flows out of Capacitor -> R2 -> Pin 7
+        activeTracks.push({ index: 6, dir: -1 }); // Through R2 (backward into Pin 7)
+        activeTracks.push({ index: 8, dir: -1 }); // Capacitor discharging
+        // LED loop is inactive, no current in index 9 & 10
+      }
+
+      // GND returns always active
+      activeTracks.push({ index: 1, dir: 1 });
+      activeTracks.push({ index: 2, dir: 1 });
+
+      const activeIndices = activeTracks.map(t => t.index);
+
+      // Handle particle dynamics
+      flowParticles.forEach((p, idx) => {
+        // Assign a random active track if not in one
+        if (!activeIndices.includes(p.trackIndex) || Math.random() < 0.01) {
+          const randTrack = activeTracks[Math.floor(Math.random() * activeTracks.length)];
+          if (randTrack) {
+            p.trackIndex = randTrack.index;
+          }
+        }
+
+        const trackData = activeTracks.find(t => t.index === p.trackIndex);
+        if (!trackData) {
+          p.mesh.visible = false;
+          return;
+        }
+
+        const spline = particleFlowTracks[p.trackIndex].curve;
+        // Increment progress based on speed/direction
+        p.progress += p.speed * dt * simSpeed * trackData.dir;
+
+        if (p.progress > 1.0) p.progress = 0;
+        if (p.progress < 0) p.progress = 1.0;
+
+        // Position particle on spline curve
+        const pos = spline.getPointAt(p.progress);
+        p.mesh.position.copy(pos);
+        p.mesh.position.y += 0.05; // hover slightly over wires
+
+        // Dynamically color particles
+        if (p.trackIndex === 9 || p.trackIndex === 10) {
+          p.mesh.material.color.setHex(0xfc8181); // Amber red for output paths
+        } else {
+          p.mesh.material.color.setHex(0x60a5fa); // Electric blue
+        }
+        p.mesh.visible = true;
+      });
+    }
+
+    // --- Oscilloscope Display Update ---
+    function updateOscilloscope(dt) {
+      scopeHistory.push({ vc: Vc, vout: pin3Output });
+      if (scopeHistory.length > maxScopePoints) {
+        scopeHistory.shift();
+      }
+
+      // Clear Canvas
+      scopeCtx.fillStyle = "#090d16";
+      scopeCtx.fillRect(0, 0, scopeCanvas.width, scopeCanvas.height);
+
+      // Draw Grid
+      scopeCtx.strokeStyle = "#1e293b";
+      scopeCtx.lineWidth = 1;
+      const gridRows = 4;
+      const gridCols = 8;
+      for (let i = 1; i < gridRows; i++) {
+        const y = (scopeCanvas.height / gridRows) * i;
+        scopeCtx.beginPath();
+        scopeCtx.moveTo(0, y);
+        scopeCtx.lineTo(scopeCanvas.width, y);
+        scopeCtx.stroke();
+      }
+      for (let i = 1; i < gridCols; i++) {
+        const x = (scopeCanvas.width / gridCols) * i;
+        scopeCtx.beginPath();
+        scopeCtx.moveTo(x, 0);
+        scopeCtx.lineTo(x, scopeCanvas.height);
+        scopeCtx.stroke();
+      }
+
+      // Plot Capacitor Vc (Yellow)
+      scopeCtx.strokeStyle = "#eab308";
+      scopeCtx.lineWidth = 2.5;
+      scopeCtx.beginPath();
+      scopeHistory.forEach((pt, idx) => {
+        const x = (scopeCanvas.width / maxScopePoints) * idx;
+        // Vc scale 0 to 9V -> map to height
+        const y = scopeCanvas.height - (pt.vc / Vcc) * (scopeCanvas.height - 20) - 10;
+        if (idx === 0) scopeCtx.moveTo(x, y);
+        else scopeCtx.lineTo(x, y);
+      });
+      scopeCtx.stroke();
+
+      // Plot Output Vout (Indigo)
+      scopeCtx.strokeStyle = "#6366f1";
+      scopeCtx.lineWidth = 2.5;
+      scopeCtx.beginPath();
+      scopeHistory.forEach((pt, idx) => {
+        const x = (scopeCanvas.width / maxScopePoints) * idx;
+        const y = scopeCanvas.height - (pt.vout / Vcc) * (scopeCanvas.height - 20) - 10;
+        if (idx === 0) scopeCtx.moveTo(x, y);
+        else scopeCtx.lineTo(x, y);
+      });
+      scopeCtx.stroke();
+    }
+
+    // --- 555 Math Solver Loop ---
+    function runCircuitSimulationMath(dt) {
+      if (!isSimulationRunning) return;
+
+      const deltaT = dt * simSpeed;
+
+      // Charge threshold voltage boundaries
+      const upperThreshold = (2 / 3) * Vcc; // 6.0V
+      const lowerThreshold = (1 / 3) * Vcc; // 3.0V
+
+      if (cyclePhase === "charging") {
+        // Charging cycle: through (R1 + R2)
+        // Formula: Vc(t) = Vcc * (1 - e^(-t / RC))
+        // Differential approx: dVc = (Vcc - Vc) * dt / ((R1 + R2) * C1)
+        const dVc = (Vcc - Vc) * (deltaT / ((R1 + R2) * C1));
+        Vc += dVc;
+
+        pin3Output = Vcc; // High Output state
+        
+        if (Vc >= upperThreshold) {
+          Vc = upperThreshold;
+          cyclePhase = "discharging";
+        }
+      } else {
+        // Discharging cycle: from C1 through R2 into Pin 7 (discharge)
+        // Formula: Vc(t) = V_initial * e^(-t / RC)
+        // Differential approx: dVc = -Vc * dt / (R2 * C1)
+        const dVc = -Vc * (deltaT / (R2 * C1));
+        Vc += dVc;
+
+        pin3Output = 0.0; // Low Output state
+
+        if (Vc <= lowerThreshold) {
+          Vc = lowerThreshold;
+          cyclePhase = "charging";
+        }
+      }
+
+      // Update UI elements
+      document.getElementById("cycle-state").innerText = cyclePhase.charAt(0).toUpperCase() + cyclePhase.slice(1);
+      document.getElementById("cycle-state").className = cyclePhase === "charging" 
+        ? "font-mono bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded border border-indigo-800"
+        : "font-mono bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800";
+
+      document.getElementById("val-vc").innerText = Vc.toFixed(2) + "V";
+      document.getElementById("val-vout").innerText = pin3Output.toFixed(1) + "V";
+
+      // Animate LED emission intensity & PointLight based on output voltage
+      if (ledAnodeDome) {
+        if (pin3Output > 0) {
+          ledAnodeDome.material.color.setHex(0xff3b30);
+          ledPointLight.intensity = 2.5;
+        } else {
+          ledAnodeDome.material.color.setHex(0x550000); // dim off
+          ledPointLight.intensity = 0;
+        }
+      }
+    }
+
+    // --- Main Render / Tick Loop ---
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const now = performance.now();
+      // limit delta to avoid physics/sim breaks
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+
+      // Pulse assembly guide markers
+      const pulse = 1 + Math.sin(now * 0.008) * 0.2;
+      visualHoleMarkers.forEach(marker => {
+        marker.scale.set(pulse, pulse, 1);
+      });
+
+      // Update calculations & visual current paths
+      runCircuitSimulationMath(dt);
+      updateParticles(dt);
+      updateOscilloscope(dt);
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // --- Setup Canvas Size for Graphs ---
+    function setupScopeCanvas() {
+      const rect = scopeCanvas.getBoundingClientRect();
+      scopeCanvas.width = rect.width * window.devicePixelRatio;
+      scopeCanvas.height = rect.height * window.devicePixelRatio;
+      scopeCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+
+    // --- Entry Point ---
+    window.onload = function() {
+      initializeComponents();
+      setupScopeCanvas();
+      navigateStep(0);
+      animate();
+    };
+  </script>
+</body>
+</html>
